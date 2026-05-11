@@ -578,6 +578,14 @@ class InitializeSDKTests: XCTestCase {
         let objcInstallationId = "helloWorld"
         _ = objcParseKeychain.setObjectiveC(object: objcInstallationId, forKey: "installationId")
 
+        var unrelatedInstallation = Installation()
+        unrelatedInstallation.updateAutomaticInfo()
+        unrelatedInstallation.objectId = "unrelatedInstallationObjectId"
+        unrelatedInstallation.installationId = UUID().uuidString.lowercased()
+        Installation.currentContainer.installationId = unrelatedInstallation.installationId
+        Installation.currentContainer.currentInstallation = unrelatedInstallation
+        Installation.saveCurrentContainerToKeychain()
+
         guard let url = URL(string: "http://localhost:1337/1") else {
             XCTFail("Should create valid URL")
             return
@@ -592,6 +600,7 @@ class InitializeSDKTests: XCTestCase {
                 return MockURLResponse(error: error)
             }
         }
+        defer { MockURLProtocol.removeAll() }
         ParseSwift.initialize(applicationId: "applicationId",
                               clientKey: "clientKey",
                               masterKey: "masterKey",
@@ -604,7 +613,7 @@ class InitializeSDKTests: XCTestCase {
         }
         XCTAssertEqual(installation.installationId, objcInstallationId)
         XCTAssertEqual(Installation.currentContainer.installationId, objcInstallationId)
-        MockURLProtocol.removeAll()
+        XCTAssertNil(installation.objectId)
     }
 
     func testMigrateObjcSDKReusesExistingInstallation() {
@@ -637,6 +646,7 @@ class InitializeSDKTests: XCTestCase {
                 return MockURLResponse(error: error)
             }
         }
+        defer { MockURLProtocol.removeAll() }
 
         guard let url = URL(string: "http://localhost:1337/1") else {
             XCTFail("Should create valid URL")
@@ -665,7 +675,6 @@ class InitializeSDKTests: XCTestCase {
         }
         XCTAssertEqual(keychainInstallation.currentInstallation?.installationId, objcInstallationId)
         XCTAssertEqual(keychainInstallation.currentInstallation?.objectId, existingInstallation.objectId)
-        MockURLProtocol.removeAll()
     }
 
     #if !os(macOS)
@@ -693,6 +702,7 @@ class InitializeSDKTests: XCTestCase {
                 return MockURLResponse(error: error)
             }
         }
+        defer { MockURLProtocol.removeAll() }
         ParseSwift.initialize(applicationId: "applicationId",
                               clientKey: "clientKey",
                               masterKey: "masterKey",
@@ -705,7 +715,6 @@ class InitializeSDKTests: XCTestCase {
         }
         XCTAssertEqual(installation.installationId, objcInstallationId)
         XCTAssertEqual(Installation.currentContainer.installationId, objcInstallationId)
-        MockURLProtocol.removeAll()
     }
 
     func testInitializeSDKNoTest() {

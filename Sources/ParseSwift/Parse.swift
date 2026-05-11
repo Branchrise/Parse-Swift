@@ -173,7 +173,16 @@ public func initialize(configuration: ParseConfiguration) {
                 foundInstallation.updateAutomaticInfo()
                 updatedInstallation = foundInstallation
             } else {
+                switch updatedInstallation {
+                case .some(let installation) where installation.objectId != nil:
+                    updatedInstallation = BaseParseInstallation()
+                case .none:
+                    updatedInstallation = BaseParseInstallation()
+                case .some:
+                    break
+                }
                 updatedInstallation?.installationId = installationId
+                updatedInstallation?.updateAutomaticInfo()
             }
 
             BaseParseInstallation.currentContainer.installationId = installationId
