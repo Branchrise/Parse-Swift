@@ -158,14 +158,24 @@ public func initialize(configuration: ParseConfiguration) {
     BaseParseInstallation.createNewInstallationIfNeeded()
 
     #if !os(Linux) && !os(Android) && !os(Windows)
-    if configuration.isMigratingFromObjcSDK {
-        if let objcParseKeychain = KeychainStore.objectiveC {
-            guard let installationId: String = objcParseKeychain.objectObjectiveC(forKey: "installationId"),
-                  BaseParseInstallation.current?.installationId != installationId else {
-                return
-            }
+    if configuration.isMigratingFromObjcSDK,
+       let objcParseKeychain = KeychainStore.objectiveC,
+       let installationId: String = objcParseKeychain.objectObjectiveC(forKey: "installationId") {
+        let shouldMigrateInstallation = BaseParseInstallation.current?.installationId != installationId
+            || BaseParseInstallation.current?.objectId == nil
+
+        if shouldMigrateInstallation {
             var updatedInstallation = BaseParseInstallation.current
-            updatedInstallation?.installationId = installationId
+            if var foundInstallation = try? BaseParseInstallation
+                .query("installationId" == installationId)
+                .first(options: [.cachePolicy(.reloadIgnoringLocalCacheData)]) {
+                foundInstallation.installationId = installationId
+                foundInstallation.updateAutomaticInfo()
+                updatedInstallation = foundInstallation
+            } else {
+                updatedInstallation?.installationId = installationId
+            }
+
             BaseParseInstallation.currentContainer.installationId = installationId
             BaseParseInstallation.currentContainer.currentInstallation = updatedInstallation
             BaseParseInstallation.saveCurrentContainerToKeychain()

@@ -582,6 +582,16 @@ class InitializeSDKTests: XCTestCase {
             XCTFail("Should create valid URL")
             return
         }
+        let results = QueryResponse<Installation>(results: [], count: 0)
+        MockURLProtocol.mockRequests { _ in
+            do {
+                let encoded = try ParseCoding.jsonEncoder().encode(results)
+                return MockURLResponse(data: encoded, statusCode: 200, delay: 0.0)
+            } catch {
+                XCTFail("Should encode. Error \(error)")
+                return MockURLResponse(error: error)
+            }
+        }
         ParseSwift.initialize(applicationId: "applicationId",
                               clientKey: "clientKey",
                               masterKey: "masterKey",
@@ -594,6 +604,68 @@ class InitializeSDKTests: XCTestCase {
         }
         XCTAssertEqual(installation.installationId, objcInstallationId)
         XCTAssertEqual(Installation.currentContainer.installationId, objcInstallationId)
+        MockURLProtocol.removeAll()
+    }
+
+    func testMigrateObjcSDKReusesExistingInstallation() {
+
+        // Set keychain the way objc sets keychain
+        guard let objcParseKeychain = KeychainStore.objectiveC else {
+            XCTFail("Should have unwrapped")
+            return
+        }
+        let objcInstallationId = "helloWorld"
+        _ = objcParseKeychain.setObjectiveC(object: objcInstallationId, forKey: "installationId")
+
+        var existingInstallation = Installation()
+        existingInstallation.updateAutomaticInfo()
+        existingInstallation.objectId = "existingInstallationObjectId"
+        existingInstallation.installationId = objcInstallationId
+        existingInstallation.channels = ["migrated"]
+        existingInstallation.deviceToken = "migratedDeviceToken"
+
+        let results = QueryResponse<Installation>(results: [existingInstallation], count: 1)
+        MockURLProtocol.mockRequests { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertTrue(request.url?.absoluteString.contains("_Installation") == true)
+            XCTAssertTrue(request.url?.absoluteString.contains("installationId") == true)
+            do {
+                let encoded = try ParseCoding.jsonEncoder().encode(results)
+                return MockURLResponse(data: encoded, statusCode: 200, delay: 0.0)
+            } catch {
+                XCTFail("Should encode. Error \(error)")
+                return MockURLResponse(error: error)
+            }
+        }
+
+        guard let url = URL(string: "http://localhost:1337/1") else {
+            XCTFail("Should create valid URL")
+            return
+        }
+        ParseSwift.initialize(applicationId: "applicationId",
+                              clientKey: "clientKey",
+                              masterKey: "masterKey",
+                              serverURL: url,
+                              migratingFromObjcSDK: true,
+                              testing: true)
+        guard let installation = Installation.current else {
+            XCTFail("Should have installation")
+            return
+        }
+        XCTAssertEqual(installation.installationId, objcInstallationId)
+        XCTAssertEqual(installation.objectId, existingInstallation.objectId)
+        XCTAssertEqual(installation.channels, existingInstallation.channels)
+        XCTAssertEqual(installation.deviceToken, existingInstallation.deviceToken)
+        XCTAssertEqual(Installation.currentContainer.installationId, objcInstallationId)
+
+        guard let keychainInstallation: CurrentInstallationContainer<Installation>
+            = try? KeychainStore.shared.get(valueFor: ParseStorage.Keys.currentInstallation) else {
+                XCTFail("Should get object from Keychain")
+            return
+        }
+        XCTAssertEqual(keychainInstallation.currentInstallation?.installationId, objcInstallationId)
+        XCTAssertEqual(keychainInstallation.currentInstallation?.objectId, existingInstallation.objectId)
+        MockURLProtocol.removeAll()
     }
 
     #if !os(macOS)
@@ -611,6 +683,16 @@ class InitializeSDKTests: XCTestCase {
             XCTFail("Should create valid URL")
             return
         }
+        let results = QueryResponse<Installation>(results: [], count: 0)
+        MockURLProtocol.mockRequests { _ in
+            do {
+                let encoded = try ParseCoding.jsonEncoder().encode(results)
+                return MockURLResponse(data: encoded, statusCode: 200, delay: 0.0)
+            } catch {
+                XCTFail("Should encode. Error \(error)")
+                return MockURLResponse(error: error)
+            }
+        }
         ParseSwift.initialize(applicationId: "applicationId",
                               clientKey: "clientKey",
                               masterKey: "masterKey",
@@ -623,6 +705,7 @@ class InitializeSDKTests: XCTestCase {
         }
         XCTAssertEqual(installation.installationId, objcInstallationId)
         XCTAssertEqual(Installation.currentContainer.installationId, objcInstallationId)
+        MockURLProtocol.removeAll()
     }
 
     func testInitializeSDKNoTest() {
