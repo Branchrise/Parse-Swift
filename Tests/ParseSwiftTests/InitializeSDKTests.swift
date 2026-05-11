@@ -616,6 +616,48 @@ class InitializeSDKTests: XCTestCase {
         XCTAssertNil(installation.objectId)
     }
 
+    func testMigrateObjcSDKPreservesCurrentInstallationOnLookupFailure() {
+
+        // Set keychain the way objc sets keychain
+        guard let objcParseKeychain = KeychainStore.objectiveC else {
+            XCTFail("Should have unwrapped")
+            return
+        }
+        let objcInstallationId = "helloWorld"
+        _ = objcParseKeychain.setObjectiveC(object: objcInstallationId, forKey: "installationId")
+
+        var currentInstallation = Installation()
+        currentInstallation.updateAutomaticInfo()
+        currentInstallation.objectId = "currentInstallationObjectId"
+        currentInstallation.installationId = UUID().uuidString.lowercased()
+        Installation.currentContainer.installationId = currentInstallation.installationId
+        Installation.currentContainer.currentInstallation = currentInstallation
+        Installation.saveCurrentContainerToKeychain()
+
+        MockURLProtocol.mockRequests { _ in
+            MockURLResponse(error: URLError(.notConnectedToInternet))
+        }
+        defer { MockURLProtocol.removeAll() }
+
+        guard let url = URL(string: "http://localhost:1337/1") else {
+            XCTFail("Should create valid URL")
+            return
+        }
+        ParseSwift.initialize(applicationId: "applicationId",
+                              clientKey: "clientKey",
+                              masterKey: "masterKey",
+                              serverURL: url,
+                              migratingFromObjcSDK: true,
+                              testing: true)
+        guard let installation = Installation.current else {
+            XCTFail("Should have installation")
+            return
+        }
+        XCTAssertEqual(installation.installationId, currentInstallation.installationId)
+        XCTAssertEqual(installation.objectId, currentInstallation.objectId)
+        XCTAssertEqual(Installation.currentContainer.installationId, currentInstallation.installationId)
+    }
+
     func testMigrateObjcSDKReusesExistingInstallation() {
 
         // Set keychain the way objc sets keychain

@@ -166,13 +166,14 @@ public func initialize(configuration: ParseConfiguration) {
 
         if shouldMigrateInstallation {
             var updatedInstallation = BaseParseInstallation.current
-            if var foundInstallation = try? BaseParseInstallation
-                .query("installationId" == installationId)
-                .first(options: [.cachePolicy(.reloadIgnoringLocalCacheData)]) {
+            do {
+                var foundInstallation = try BaseParseInstallation
+                    .query("installationId" == installationId)
+                    .first(options: [.cachePolicy(.reloadIgnoringLocalCacheData)])
                 foundInstallation.installationId = installationId
                 foundInstallation.updateAutomaticInfo()
                 updatedInstallation = foundInstallation
-            } else {
+            } catch let error as ParseError where error.code == .objectNotFound {
                 switch updatedInstallation {
                 case .some(let installation) where installation.objectId != nil:
                     updatedInstallation = BaseParseInstallation()
@@ -183,6 +184,9 @@ public func initialize(configuration: ParseConfiguration) {
                 }
                 updatedInstallation?.installationId = installationId
                 updatedInstallation?.updateAutomaticInfo()
+            } catch {
+                // initialize is non-throwing; keep the current installation untouched on lookup failures.
+                return
             }
 
             BaseParseInstallation.currentContainer.installationId = installationId
